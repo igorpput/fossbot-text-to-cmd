@@ -1,0 +1,166 @@
+================================================================================
+LAB 03 SPEEDRUN PLAYBOOK: FOSSBOT TEXT-TO-CMD
+================================================================================
+Workstation credentials:
+- User: put
+- Password: lrm
+- Terminal shortcut: Ctrl+Alt+T
+================================================================================
+
+--------------------------------------------------------------------------------
+BLOCK 1: ENVIRONMENT SETUP & SCREENSHOT 1 (~2-3 min)
+--------------------------------------------------------------------------------
+Run the following commands in the terminal.
+(Replace YOUR_USERNAME with your actual GitHub username!)
+
+rm -rf ~/Pictures/Screenshots /tmp/fossbot-text-to-cmd
+git clone https://github.com/YOUR_USERNAME/fossbot-text-to-cmd.git /tmp/fossbot-text-to-cmd
+cd /tmp/fossbot-text-to-cmd
+
+python3 -m venv .venv
+source .venv/bin/activate
+pip install torch --index-url https://download.pytorch.org/whl/cpu
+pip install -r requirements.txt
+
+python -c "import pandas, sklearn, sentence_transformers; print('OK')"
+
+>>> CAPTURE SCREENSHOT 1:
+Terminal showing the "OK" output and the prompt starting with "(.venv)".
+
+
+--------------------------------------------------------------------------------
+BLOCK 2: SKLEARN BASIC & SCREENSHOT 2 (~1 min)
+--------------------------------------------------------------------------------
+Run:
+
+python -m src.text_to_wheels \
+    --input data/examples/basic.txt \
+    --output outputs/sklearn_basic.json \
+    --classifier sklearn
+
+python -c "import json; [print(f\"{r['input']:22s} -> {r['action']:12s} ({r['confidence']:.3f})\") for r in json.load(open('outputs/sklearn_basic.json'))]"
+
+>>> CAPTURE SCREENSHOT 2:
+Terminal showing "Test accuracy: 0.800" (or similar), the success message,
+and the formatted 7-line prediction summary.
+
+
+--------------------------------------------------------------------------------
+BLOCK 3: SENTENCE TRANSFORMER BASIC & SCREENSHOT 3 (~1 min)
+--------------------------------------------------------------------------------
+Run:
+
+python -m src.text_to_wheels \
+    --input data/examples/basic.txt \
+    --output outputs/st_basic.json \
+    --classifier st
+
+python -c "import json; [print(f\"{r['input']:22s} -> {r['action']:12s} ({r['confidence']:.3f})\") for r in json.load(open('outputs/st_basic.json'))]"
+
+>>> CAPTURE SCREENSHOT 3:
+Terminal showing "Processed 7 commands with the 'st' classifier." and the
+formatted 7-line prediction summary.
+
+
+--------------------------------------------------------------------------------
+BLOCK 4: MULTILINGUAL COMPARISON & SCREENSHOT 4 (~1 min)
+--------------------------------------------------------------------------------
+Run:
+
+python -m src.text_to_wheels \
+    --input data/examples/multilingual.txt \
+    --output outputs/sklearn_multilingual.json \
+    --classifier sklearn
+
+python -m src.text_to_wheels \
+    --input data/examples/multilingual.txt \
+    --output outputs/st_multilingual.json \
+    --classifier st
+
+echo "=== sklearn ===" && python -c "import json; [print(f\"{r['input']:22s} -> {r['action']:12s} ({r['confidence']:.3f})\") for r in json.load(open('outputs/sklearn_multilingual.json'))]" && echo "=== st ===" && python -c "import json; [print(f\"{r['input']:22s} -> {r['action']:12s} ({r['confidence']:.3f})\") for r in json.load(open('outputs/st_multilingual.json'))]"
+
+>>> CAPTURE SCREENSHOT 4:
+Terminal showing both "=== sklearn ===" (collapsed to backward) and
+"=== st ===" (correctly classified) printed back to back.
+
+
+--------------------------------------------------------------------------------
+BLOCK 5: SUBMISSION ANSWERS (COPY & PASTE)
+--------------------------------------------------------------------------------
+
+Question 1:
+Look at the confidences in /tmp/fossbot-text-to-cmd/outputs/sklearn_multilingual.json.
+Almost every input ended up with the same prediction and the same confidence
+value (around 0.25). Explain why this happens.
+
+Answer 1:
+TF-IDF is a purely lexical representation that only recognizes words present
+in the training vocabulary (built from training_commands.csv). Because the
+multilingual test commands (Polish, German, Spanish) contain words never seen
+during training, their TF-IDF representations become all-zero vectors with no
+informative features. In the absence of feature signals, Logistic Regression
+falls back entirely on its learned class bias intercept term. The class with
+the highest bias intercept (which was "backward" under random_state=42) wins
+every tie by default with a low probability roughly equal to class balance (~0.23-0.25).
+
+
+Question 2:
+Look at the templates dictionary in /tmp/fossbot-text-to-cmd/src/classifier_st.py.
+There are only 3 English phrases per action - no Polish, German or Spanish.
+Why is the sentence-transformer classifier still able to handle multilingual
+input correctly?
+
+Answer 2:
+The underlying model (paraphrase-multilingual-MiniLM-L12-v2) was pretrained on
+massive cross-lingual corpora covering ~50 languages. During pretraining, it
+learned to project semantically equivalent sentences into nearby coordinates
+in a shared dense embedding space regardless of language. Thus, "do przodu",
+"fahre vorwärts", and "go forward" all map to nearly identical vector
+representations. Cosine similarity compares this underlying semantic meaning
+rather than exact character tokens.
+
+
+Question 3:
+The wheels field in the JSON output uses values in [-1.0, 1.0]. The mapping
+from action name to wheel speeds is defined in
+/tmp/fossbot-text-to-cmd/src/wheel_mapping.py. What would you change there
+to make the robot turn faster on the spot?
+
+Answer 3:
+In src/wheel_mapping.py, increase the absolute magnitude of the speed values
+in the WHEEL_COMMANDS dictionary for turning actions closer to the extreme limits
+($\pm 1.0$). For example, change:
+    "turn_left":  [-0.3, 0.3]  ->  [-0.8, 0.8]
+    "turn_right": [0.3, -0.3]  ->  [0.8, -0.8]
+
+
+Question 4:
+The sklearn pipeline is trained from scratch on 75 examples; the
+sentence-transformer model is loaded already trained. List one advantage
+and one disadvantage of each approach for a project that needs to
+recognise 50 different commands instead of 5.
+
+Answer 4:
+- sklearn (TF-IDF + Logistic Regression):
+  * Advantage: Extremely lightweight, highly deterministic, and provides
+    sub-millisecond inference latency with virtually no memory footprint (<1 MB).
+  * Disadvantage: Poor scalability with respect to data collection. Recognizing
+    50 commands would require manually collecting, labeling, and maintaining
+    hundreds of training examples per class across every supported language, and
+    it remains brittle to unseen synonyms.
+- Sentence Transformers:
+  * Advantage: Excellent zero-shot scalability and multilingual capability out
+    of the box. Adding a new command only requires defining 2-3 template
+    reference phrases without annotating an entire dataset.
+  * Disadvantage: High computational and resource overhead (~100 ms CPU latency
+    per query, heavy dependencies, and hundreds of MB of model weights), making
+    it harder to deploy on resource-constrained embedded robotics hardware.
+
+
+--------------------------------------------------------------------------------
+BLOCK 6: WORKSTATION CLEANUP (~10 seconds)
+--------------------------------------------------------------------------------
+Run:
+
+deactivate 2>/dev/null; cd ~ && rm -rf /tmp/fossbot-text-to-cmd
+================================================================================
