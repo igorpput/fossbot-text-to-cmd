@@ -22,28 +22,36 @@ class SklearnClassifier:
         #   Pipeline           - https://scikit-learn.org/stable/modules/generated/sklearn.pipeline.Pipeline.html
         #   TfidfVectorizer    - https://scikit-learn.org/stable/modules/generated/sklearn.feature_extraction.text.TfidfVectorizer.html
         #   LogisticRegression - https://scikit-learn.org/stable/modules/generated/sklearn.linear_model.LogisticRegression.html
-        self.pipeline = None  # <-- replace
+        self.pipeline = Pipeline([
+            ("vec", TfidfVectorizer(lowercase=True, ngram_range=(1, 2))),
+            ("clf", LogisticRegression(max_iter=1000)),
+        ])
 
     def train(self, csv_path):
         """Train the pipeline on the provided CSV (columns: text, action)."""
         # TODO 2: Load the CSV with pandas (use the `csv_path` argument).
         # Docs: https://pandas.pydata.org/docs/reference/api/pandas.read_csv.html
-        df = None  # <-- replace
+        df = pd.read_csv(csv_path)
 
         # TODO 3: Split the data into train and test sets using train_test_split.
         # Use df["text"] as features and df["action"] as labels.
         # Use test_size=0.2 and random_state=42 for reproducible results.
         # Docs: https://scikit-learn.org/stable/modules/generated/sklearn.model_selection.train_test_split.html
-        x_train, x_test, y_train, y_test = None, None, None, None  # <-- replace
+        x_train, x_test, y_train, y_test = train_test_split(
+            df["text"], df["action"], test_size=0.2, random_state=42
+        )
 
         # TODO 4: Fit the pipeline on the training data.
         # Docs: https://scikit-learn.org/stable/modules/generated/sklearn.pipeline.Pipeline.html#sklearn.pipeline.Pipeline.fit
+        self.pipeline.fit(x_train, y_train)
 
         # TODO 5: Predict on the test set with self.pipeline.predict(...),
         #         compute accuracy with accuracy_score, and print it.
         # Docs:
         #   Pipeline.predict - https://scikit-learn.org/stable/modules/generated/sklearn.pipeline.Pipeline.html#sklearn.pipeline.Pipeline.predict
         #   accuracy_score   - https://scikit-learn.org/stable/modules/generated/sklearn.metrics.accuracy_score.html
+        predictions = self.pipeline.predict(x_test)
+        print(f"Test accuracy: {accuracy_score(y_test, predictions):.3f}")
 
     def predict(self, text):
         """Return (action, confidence) for a single input text.
@@ -57,6 +65,6 @@ class SklearnClassifier:
         # Docs:
         #   Pipeline.predict       - https://scikit-learn.org/stable/modules/generated/sklearn.pipeline.Pipeline.html#sklearn.pipeline.Pipeline.predict
         #   Pipeline.predict_proba - https://scikit-learn.org/stable/modules/generated/sklearn.pipeline.Pipeline.html#sklearn.pipeline.Pipeline.predict_proba
-        action = "stop"     # <-- replace
-        confidence = 0.0    # <-- replace
+        action = str(self.pipeline.predict([text])[0])
+        confidence = float(self.pipeline.predict_proba([text])[0].max())
         return action, float(confidence)

@@ -26,15 +26,17 @@ class SentenceTransformerClassifier:
         # TODO 1: Load the pretrained model.
         # Pattern: self.model = SentenceTransformer(...)
         # Docs: https://www.sbert.net/docs/package_reference/SentenceTransformer.html
-        self.model = None  # <-- replace
+        self.model = SentenceTransformer(model_name)
 
         # TODO 2: For each action in TEMPLATES, encode its template phrases with
         # self.model.encode(...) and store the resulting arrays in
         # self.template_embeddings.
+        self.template_embeddings = {}
         # Pattern: iterate over TEMPLATES.items() and call encode on the phrase list.
         # Expected layout: {"forward": <ndarray (n_templates, dim)>, ...}
         # Docs (encode): https://www.sbert.net/docs/package_reference/SentenceTransformer.html#sentence_transformers.SentenceTransformer.encode
-        self.template_embeddings = {}
+        for action, phrases in TEMPLATES.items():
+            self.template_embeddings[action] = self.model.encode(phrases)
 
     def predict(self, text):
         """Return (action, similarity) for a single input text.
@@ -44,14 +46,24 @@ class SentenceTransformerClassifier:
         """
         # TODO 3: Encode the input text with self.model.encode(...).
         # Note: pass the input as a list (one-element list works).
+        user_vec = self.model.encode([text])
 
         # TODO 4: For each action in self.template_embeddings, compute
         # cosine_similarity between the user vector and the action's template
         # embeddings. The score for the action is the maximum value across its
         # templates (use .max() on the result).
         # Docs: https://scikit-learn.org/stable/modules/generated/sklearn.metrics.pairwise.cosine_similarity.html
+        best_action = None
+        best_score = -10000.0
+
+        for action, embeddings in self.template_embeddings.items():
+            sims = cosine_similarity(user_vec, embeddings)
+            max_sim = float(sims.max())
+            if max_sim > best_score:
+                best_score = max_sim
+                best_action = action
 
         # TODO 5: Return the action with the highest score and that score.
-        action = "stop"   # <-- replace
-        score = 0.0       # <-- replace
+        action = best_action
+        score = best_score
         return action, float(score)
